@@ -3,9 +3,14 @@
 <package format="3">
   <name>clio_bringup</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>Bringup launch files for clio bot</description>
   <maintainer email="cyx2582205445@gmail.com">iwintern</maintainer>
   <license>Apache-2.0</license>
+
+  <depend>guide_robot_localization</depend>
+  <depend>fast_lio</depend>
+  <depend>livox_ros_driver2</depend>
+  <depend>localizer</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
