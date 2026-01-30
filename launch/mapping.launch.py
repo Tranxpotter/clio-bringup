@@ -2,12 +2,19 @@ import os
 import math
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, TimerAction, DeclareLaunchArgument, ExecuteProcess, RegisterEventHandler
+from launch.actions import IncludeLaunchDescription, LogInfo, TimerAction, DeclareLaunchArgument, ExecuteProcess, RegisterEventHandler
 from launch.substitutions import LaunchConfiguration, PythonExpression, PathJoinSubstitution
-from launch.event_handlers import OnShutdown
+from launch.event_handlers import OnShutdown, OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 from launch.conditions import IfCondition, UnlessCondition
+
+# def shutdown_func_with_echo_side_effect(event, context):
+#     os.system('echo [os.system()] Shutdown callback function can echo this way.')
+#     return [
+#         LogInfo(msg='Shutdown callback was called for reason "{}"'.format(event.reason)),
+#         LogInfo(msg="Copied scan to desired path."), 
+#         ExecuteProcess(cmd=['echo', 'However, this echo will fail.'])]
 
 
 def generate_launch_description():
@@ -35,8 +42,8 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([
                 driver_dir, 
-                "launch", 
-                "msg_MID350_launch.py"
+                "launch_ROS2", 
+                "msg_MID360_launch.py"
             ])
         ), 
         condition=IfCondition(launch_driver)
@@ -69,11 +76,16 @@ def generate_launch_description():
         name="copy_map"
     )
 
-    on_shutdown_event = RegisterEventHandler(
-        OnShutdown(
-            on_shutdown=[copy_map_action]
-        )
-    )
+    # on_shutdown_event = RegisterEventHandler(
+    #     OnProcessExit(
+    #         target_action=fastlio, 
+    #         on_exit=copy_map_action
+    #     )
+    # )
+
+    # on_shutdown_event = RegisterEventHandler(
+    #     OnShutdown()
+    # )
 
     return LaunchDescription([
         declare_launch_driver, 
@@ -84,5 +96,5 @@ def generate_launch_description():
         driver, 
         fastlio, 
         rosbag, 
-        on_shutdown_event
+        # on_shutdown_event
     ])
