@@ -1,3 +1,16 @@
+'''
+Docstring for clio_bringup.launch.mapping.launch
+
+Launch arguments:
+    driver: Whether to launch the Livox ROS Driver 2 (default: True)
+    fastlio: Whether to launch the Fast LIO mapping node (default: True)
+    save_path: Path to save the generated map (default: "maps/scans.pcd") # Currently disabled
+    record_bag: Whether to record a rosbag during mapping (default: True)
+    bag_path: Path to save the recorded rosbag (default: "rosbags/mapping")
+'''
+
+
+
 import os
 import math
 from ament_index_python.packages import get_package_share_directory
