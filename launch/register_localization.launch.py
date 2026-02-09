@@ -34,6 +34,7 @@ def generate_launch_description():
     fastlio_dir = get_package_share_directory("fast_lio")
     localizer_dir = get_package_share_directory("localizer")
     guide_robot_localization_dir = get_package_share_directory("guide_robot_localization")
+    nav2_bringup_dir = get_package_share_directory("nav2_bringup")
 
     # Declare launch arguments
     declare_launch_driver = DeclareLaunchArgument('driver', default_value="False")
@@ -176,6 +177,18 @@ def generate_launch_description():
         output='screen', 
         condition=IfCondition(use_bag), 
         name="rosbag_recorder"
+    )
+
+
+    #Nav2 bringup launch
+    nav2_bringup = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([
+                nav2_bringup_dir, 
+                "launch", 
+                "bringup_launch.py"
+            ])
+        )
     )
 
     
