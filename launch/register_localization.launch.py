@@ -188,7 +188,10 @@ def generate_launch_description():
                 "launch", 
                 "bringup_launch.py"
             ])
-        )
+        ), 
+        launch_arguments={
+            "params_file":PathJoinSubstitution(this_pkg_dir, "config", "nav2_params.yaml")
+        }.items()
     )
 
     
