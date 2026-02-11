@@ -157,8 +157,8 @@ def generate_launch_description():
 
     remapper = Node(
         package="guide_robot_localization", 
-        executable="goal_pose_remapper", 
-        name="goal_pose_remapper", 
+        executable="pose_estimate_remapper", 
+        name="pose_estimate_remapper", 
         parameters=[{
             "map_path":map_path, 
             "verbose":False, 
