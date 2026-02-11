@@ -43,8 +43,10 @@ def generate_launch_description():
     declare_launch_localizer = DeclareLaunchArgument('localizer', default_value="True")
     declare_launch_remapper = DeclareLaunchArgument('remapper', default_value="True")
     declare_map_path = DeclareLaunchArgument('map_path', default_value="maps/scans.pcd")
+    declare_map_2d_path = DeclareLaunchArgument('map_2d_path', default_value="maps/map.yaml")
     declare_use_bag = DeclareLaunchArgument('use_bag', default_value="False")
     declare_bag_path = DeclareLaunchArgument('bag_path', default_value="rosbags/mapping")
+    declare_use_sim_time = DeclareLaunchArgument('use_sim_time', default_value="False")
 
     launch_driver = LaunchConfiguration('driver')
     launch_fastlio = LaunchConfiguration('fastlio')
@@ -52,8 +54,10 @@ def generate_launch_description():
     launch_localizer = LaunchConfiguration('localizer')
     launch_remapper = LaunchConfiguration('remapper')
     map_path = LaunchConfiguration('map_path')
+    map_2d_path = LaunchConfiguration('map_2d_path')
     use_bag = LaunchConfiguration('use_bag')
     bag_path = LaunchConfiguration('bag_path')
+    use_sim_time = LaunchConfiguration('use_sim_time')
 
     # Livox ros driver 2
     driver = IncludeLaunchDescription(
@@ -67,19 +71,6 @@ def generate_launch_description():
         condition=IfCondition(launch_driver)
     )
 
-    # Static odom to link map and camera_init
-    # static_odom_node = Node(
-    #     package="guide_robot_localization", 
-    #     executable="static_odom_publisher", 
-    #     name="static_odom_publisher", 
-    #     output="screen", 
-    #     parameters=[{
-    #         "output_topic":"/static_odom", 
-    #         "parent_frame":"/map", 
-    #         "child_frame":"/static_odom"
-    #     }], 
-    #     condition=IfCondition(launch_static_odom)
-    # )
 
     # pc synced static odom to link map and camera_init
     static_odom_node = Node(
@@ -92,7 +83,8 @@ def generate_launch_description():
             "output_topic":"/static_odom", 
             "parent_frame":"/camera_init", 
             "child_frame":"/static_odom", 
-            "verbose":True
+            "verbose":False, 
+            "use_sim_time":use_sim_time
         }], 
         condition=IfCondition(launch_static_odom)
     )
@@ -112,7 +104,8 @@ def generate_launch_description():
                     ])
                 ), 
                 launch_arguments={
-                    "config_file":"mid360.yaml"
+                    "config_file":"mid360.yaml", 
+                    "use_sim_time":use_sim_time
                 }.items(), 
                 condition=IfCondition(launch_fastlio)
             )
@@ -141,7 +134,8 @@ def generate_launch_description():
                     {
                         "config_path": localizer_config_path.perform(
                             launch.LaunchContext()
-                        )
+                        ), 
+                        "use_sim_time":use_sim_time
                     }
                 ],
                 condition=IfCondition(launch_localizer)
@@ -153,23 +147,37 @@ def generate_launch_description():
                 name="rviz2",
                 output="screen",
                 arguments=["-d", rviz_cfg.perform(launch.LaunchContext())],
+                parameters=[{
+                    "use_sim_time":use_sim_time
+                }], 
                 condition=IfCondition(launch_localizer)
             )
 
     # =====================================================
 
-    remapper = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            PathJoinSubstitution([
-                guide_robot_localization_dir, 
-                "launch", 
-                "goal_pose_remapper.launch.py"
-            ])
-        ), 
-        launch_arguments={
-            "map":map_path
-        }.items(), 
+    remapper = Node(
+        package="guide_robot_localization", 
+        executable="goal_pose_remapper", 
+        name="goal_pose_remapper", 
+        parameters=[{
+            "map_path":map_path, 
+            "verbose":False, 
+            "use_sim_time":use_sim_time
+        }], 
         condition=IfCondition(launch_remapper)
+    )
+
+    height_remover = Node(
+        package="guide_robot_localization", 
+        executable="tf_height_remover", 
+        name="tf_height_remover", 
+        parameters=[{
+            "world_frame":"map", 
+            "input_frame":"body", 
+            "output_frame":"robot_footprint", 
+            "verbose":False, 
+            "use_sim_time":use_sim_time
+        }]
     )
 
     rosbag = ExecuteProcess(
@@ -184,13 +192,15 @@ def generate_launch_description():
     nav2_bringup = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([
-                nav2_bringup_dir, 
+                this_pkg_dir, 
                 "launch", 
-                "bringup_launch.py"
+                "navigation.launch.py"
             ])
         ), 
         launch_arguments={
-            "params_file":PathJoinSubstitution(this_pkg_dir, "config", "nav2_params.yaml")
+            "params_file":PathJoinSubstitution([this_pkg_dir, "config", "nav2_params.yaml"]), 
+            "map":map_2d_path,
+            "use_sim_time":use_sim_time
         }.items()
     )
 
@@ -203,13 +213,17 @@ def generate_launch_description():
         declare_launch_localizer, 
         declare_launch_remapper, 
         declare_map_path, 
+        declare_map_2d_path, 
         declare_use_bag, 
         declare_bag_path, 
+        declare_use_sim_time, 
         driver, 
         fastlio_group, 
         static_odom_node, 
         localizer_node, 
         localizer_rviz, 
         remapper, 
+        height_remover, 
         rosbag, 
+        nav2_bringup, 
     ])
