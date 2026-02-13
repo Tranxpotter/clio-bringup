@@ -83,6 +83,7 @@ def generate_launch_description():
             "output_topic":"/static_odom", 
             "parent_frame":"/camera_init", 
             "child_frame":"/static_odom", 
+            "period":0.05, 
             "verbose":False, 
             "use_sim_time":use_sim_time
         }], 
@@ -167,6 +168,20 @@ def generate_launch_description():
         condition=IfCondition(launch_remapper)
     )
 
+    #Densifier doesn't seem to work
+    # densifier = Node(
+    #     package="guide_robot_localization", 
+    #     executable="tf_densifier", 
+    #     name="tf_densifier", 
+    #     parameters=[{
+    #         "parent_frame":"map", 
+    #         "child_frame":"camera_init", 
+    #         "hertz":3.0, 
+    #         "verbose":True
+    #     }]
+    # )
+
+    # Seems like height remover is not what we need for the "sensor out of bounds" error
     height_remover = Node(
         package="guide_robot_localization", 
         executable="tf_height_remover", 
@@ -176,9 +191,16 @@ def generate_launch_description():
             "input_frame":"body", 
             "output_frame":"robot_footprint", 
             "verbose":False, 
+            "z_extra_offset":0.2, 
             "use_sim_time":use_sim_time
         }]
     )
+
+
+    # body_to_base_footprint = Node(
+    #     package='tf2_ros', executable='static_transform_publisher',
+    #     arguments=['0','0','-0.4','0','0','0', "body", "robot_footprint"]
+    # )
 
     rosbag = ExecuteProcess(
         cmd=['ros2', 'bag', 'play', bag_path],
@@ -223,7 +245,9 @@ def generate_launch_description():
         localizer_node, 
         localizer_rviz, 
         remapper, 
+        # densifier, 
         height_remover, 
+        # body_to_base_footprint, 
         rosbag, 
         nav2_bringup, 
     ])
