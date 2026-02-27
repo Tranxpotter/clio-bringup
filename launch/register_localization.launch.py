@@ -73,17 +73,35 @@ def generate_launch_description():
 
 
     # pc synced static odom to link map and camera_init
+    # static_odom_node = Node(
+    #     package="guide_robot_localization", 
+    #     executable="pc_synced_static_odom_publisher", 
+    #     name="pc_synced_static_odom_publisher", 
+    #     output="screen", 
+    #     parameters=[{
+    #         "input_topic":"/cloud_registered", 
+    #         "output_topic":"/static_odom", 
+    #         "parent_frame":"/camera_init", 
+    #         "child_frame":"/static_odom", 
+    #         "period":0.05, 
+    #         "verbose":False, 
+    #         "use_sim_time":use_sim_time
+    #     }], 
+    #     condition=IfCondition(launch_static_odom)
+    # )
+
+    # pc synced static odom to link map and camera_init
     static_odom_node = Node(
         package="guide_robot_localization", 
-        executable="pc_synced_static_odom_publisher", 
-        name="pc_synced_static_odom_publisher", 
+        executable="static_odom_publisher", 
+        name="static_odom_publisher", 
         output="screen", 
         parameters=[{
             "input_topic":"/cloud_registered", 
             "output_topic":"/static_odom", 
             "parent_frame":"/camera_init", 
             "child_frame":"/static_odom", 
-            "period":0.05, 
+            "period":0.01, 
             "verbose":False, 
             "use_sim_time":use_sim_time
         }], 
@@ -176,7 +194,7 @@ def generate_launch_description():
     #     parameters=[{
     #         "parent_frame":"map", 
     #         "child_frame":"camera_init", 
-    #         "hertz":3.0, 
+    #         "hertz":10.0, 
     #         "verbose":True
     #     }]
     # )
