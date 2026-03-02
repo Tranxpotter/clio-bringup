@@ -1,296 +1,284 @@
-# Copyright (c) 2018 Intel Corporation
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+'''
+Docstring for clio_bringup.launch.navigation.launch.py
+
+Launch arguments: (* important)
+    driver: Whether to launch the Livox ROS Driver 2 (default: False)
+    fastlio: Whether to launch the Fast LIO mapping node (default: True)
+    localizer: Whether to launch the localizer node (default: True)
+    remapper: Whether to launch the remapper node (default True)
+    *map_path: Path to the saved map (default: "maps/scans.pcd")
+    use_bag: Whether to play a ros bag (default: False)           #Usually we should play rosbag in another terminal
+    bag_path: Path the saved ros bag (default: "rosbags/mapping")
+'''
+
+
 
 import os
-
+import math
+import launch
 from ament_index_python.packages import get_package_share_directory
-
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, GroupAction, SetEnvironmentVariable
-from launch.conditions import IfCondition
-from launch.substitutions import LaunchConfiguration, PythonExpression
-from launch_ros.actions import LoadComposableNodes
-from launch_ros.actions import Node
-from launch_ros.descriptions import ComposableNode, ParameterFile
-from nav2_common.launch import RewrittenYaml
+from launch.actions import IncludeLaunchDescription, LogInfo, TimerAction, DeclareLaunchArgument, ExecuteProcess, RegisterEventHandler, GroupAction
+from launch.substitutions import LaunchConfiguration, PythonExpression, PathJoinSubstitution
+from launch.event_handlers import OnShutdown, OnProcessExit
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch_ros.actions import Node, SetRemap
+from launch.conditions import IfCondition, UnlessCondition
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
-    # Get the launch directory
-    bringup_dir = get_package_share_directory('nav2_bringup')
+    this_pkg_name = 'clio_bringup'
+    this_pkg_dir = get_package_share_directory(this_pkg_name)
+    driver_dir = get_package_share_directory("livox_ros_driver2")
+    fastlio_dir = get_package_share_directory("fast_lio")
+    localizer_dir = get_package_share_directory("localizer")
+    guide_robot_localization_dir = get_package_share_directory("guide_robot_localization")
+    nav2_bringup_dir = get_package_share_directory("nav2_bringup")
 
-    namespace = LaunchConfiguration('namespace')
-    map_yaml_file = LaunchConfiguration('map')
+    # Declare launch arguments
+    declare_launch_driver = DeclareLaunchArgument('driver', default_value="False")
+    declare_launch_fastlio = DeclareLaunchArgument('fastlio', default_value="True")
+    declare_launch_static_odom = DeclareLaunchArgument('static_odom', default_value="True")
+    declare_launch_localizer = DeclareLaunchArgument('localizer', default_value="True")
+    declare_launch_remapper = DeclareLaunchArgument('remapper', default_value="True")
+    declare_map_path = DeclareLaunchArgument('map_path', default_value="maps/scans.pcd")
+    declare_map_2d_path = DeclareLaunchArgument('map_2d_path', default_value="maps/map.yaml")
+    declare_use_bag = DeclareLaunchArgument('use_bag', default_value="False")
+    declare_bag_path = DeclareLaunchArgument('bag_path', default_value="rosbags/mapping")
+    declare_use_sim_time = DeclareLaunchArgument('use_sim_time', default_value="False")
+
+    launch_driver = LaunchConfiguration('driver')
+    launch_fastlio = LaunchConfiguration('fastlio')
+    launch_static_odom = LaunchConfiguration('static_odom')
+    launch_localizer = LaunchConfiguration('localizer')
+    launch_remapper = LaunchConfiguration('remapper')
+    map_path = LaunchConfiguration('map_path')
+    map_2d_path = LaunchConfiguration('map_2d_path')
+    use_bag = LaunchConfiguration('use_bag')
+    bag_path = LaunchConfiguration('bag_path')
     use_sim_time = LaunchConfiguration('use_sim_time')
-    autostart = LaunchConfiguration('autostart')
-    params_file = LaunchConfiguration('params_file')
-    use_composition = LaunchConfiguration('use_composition')
-    container_name = LaunchConfiguration('container_name')
-    container_name_full = (namespace, '/', container_name)
-    use_respawn = LaunchConfiguration('use_respawn')
-    log_level = LaunchConfiguration('log_level')
 
-    lifecycle_nodes = ['map_server', 
-                       'controller_server',
-                       'smoother_server',
-                       'planner_server',
-                       'behavior_server',
-                       'bt_navigator',
-                       'waypoint_follower',
-                       'velocity_smoother']
+    # Livox ros driver 2
+    driver = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([
+                driver_dir, 
+                "launch_ROS2", 
+                "msg_MID360_launch.py"
+            ])
+        ), 
+        condition=IfCondition(launch_driver)
+    )
 
-    # Map fully qualified names to relative ones so the node's namespace can be prepended.
-    # In case of the transforms (tf), currently, there doesn't seem to be a better alternative
-    # https://github.com/ros/geometry2/issues/32
-    # https://github.com/ros/robot_state_publisher/pull/30
-    # TODO(orduno) Substitute with `PushNodeRemapping`
-    #              https://github.com/ros2/launch_ros/issues/56
-    remappings = [('/tf', 'tf'),
-                  ('/tf_static', 'tf_static')]
 
-    # Create our own temporary YAML files that include substitutions
-    param_substitutions = {
-        'use_sim_time': use_sim_time,
-        'autostart': autostart, 
-        'yaml_filename': map_yaml_file}
+    # pc synced static odom to link map and camera_init
+    # static_odom_node = Node(
+    #     package="guide_robot_localization", 
+    #     executable="pc_synced_static_odom_publisher", 
+    #     name="pc_synced_static_odom_publisher", 
+    #     output="screen", 
+    #     parameters=[{
+    #         "input_topic":"/cloud_registered", 
+    #         "output_topic":"/static_odom", 
+    #         "parent_frame":"/camera_init", 
+    #         "child_frame":"/static_odom", 
+    #         "period":0.05, 
+    #         "verbose":False, 
+    #         "use_sim_time":use_sim_time
+    #     }], 
+    #     condition=IfCondition(launch_static_odom)
+    # )
 
-    configured_params = ParameterFile(
-        RewrittenYaml(
-            source_file=params_file,
-            root_key=namespace,
-            param_rewrites=param_substitutions,
-            convert_types=True),
-        allow_substs=True)
+    # pc synced static odom to link map and camera_init
+    static_odom_node = Node(
+        package="guide_robot_localization", 
+        executable="static_odom_publisher", 
+        name="static_odom_publisher", 
+        output="screen", 
+        parameters=[{
+            "input_topic":"/cloud_registered", 
+            "output_topic":"/static_odom", 
+            "parent_frame":"/camera_init", 
+            "child_frame":"/static_odom", 
+            "period":0.01, 
+            "verbose":False, 
+            "use_sim_time":use_sim_time
+        }], 
+        condition=IfCondition(launch_static_odom)
+    )
 
-    stdout_linebuf_envvar = SetEnvironmentVariable(
-        'RCUTILS_LOGGING_BUFFERED_STREAM', '1')
 
-    declare_namespace_cmd = DeclareLaunchArgument(
-        'namespace',
-        default_value='',
-        description='Top-level namespace')
-    
-    declare_map_yaml_cmd = DeclareLaunchArgument(
-        'map',
-        description='Full path to map yaml file to load')
 
-    declare_use_sim_time_cmd = DeclareLaunchArgument(
-        'use_sim_time',
-        default_value='false',
-        description='Use simulation (Gazebo) clock if true')
+    fastlio_group = GroupAction(
+        [
+            SetRemap("/Odometry", "/fastlio2/lio_odom"), 
 
-    declare_params_file_cmd = DeclareLaunchArgument(
-        'params_file',
-        default_value=os.path.join(bringup_dir, 'params', 'nav2_params.yaml'),
-        description='Full path to the ROS2 parameters file to use for all launched nodes')
-
-    declare_autostart_cmd = DeclareLaunchArgument(
-        'autostart', default_value='true',
-        description='Automatically startup the nav2 stack')
-
-    declare_use_composition_cmd = DeclareLaunchArgument(
-        'use_composition', default_value='False',
-        description='Use composed bringup if True')
-
-    declare_container_name_cmd = DeclareLaunchArgument(
-        'container_name', default_value='nav2_container',
-        description='the name of conatiner that nodes will load in if use composition')
-
-    declare_use_respawn_cmd = DeclareLaunchArgument(
-        'use_respawn', default_value='False',
-        description='Whether to respawn if a node crashes. Applied when composition is disabled.')
-
-    declare_log_level_cmd = DeclareLaunchArgument(
-        'log_level', default_value='info',
-        description='log level')
-
-    load_nodes = GroupAction(
-        condition=IfCondition(PythonExpression(['not ', use_composition])),
-        actions=[
-            Node(
-                package='nav2_map_server',
-                executable='map_server',
-                name='map_server',
-                output='screen',
-                respawn=use_respawn,
-                respawn_delay=2.0,
-                parameters=[configured_params],
-                arguments=['--ros-args', '--log-level', log_level],
-                remappings=remappings),
-            Node(
-                package='nav2_controller',
-                executable='controller_server',
-                output='screen',
-                respawn=use_respawn,
-                respawn_delay=2.0,
-                parameters=[configured_params],
-                arguments=['--ros-args', '--log-level', log_level],
-                remappings=remappings + [('cmd_vel', 'cmd_vel_nav')]),
-            Node(
-                package='nav2_smoother',
-                executable='smoother_server',
-                name='smoother_server',
-                output='screen',
-                respawn=use_respawn,
-                respawn_delay=2.0,
-                parameters=[configured_params],
-                arguments=['--ros-args', '--log-level', log_level],
-                remappings=remappings),
-            Node(
-                package='nav2_planner',
-                executable='planner_server',
-                name='planner_server',
-                output='screen',
-                respawn=use_respawn,
-                respawn_delay=2.0,
-                parameters=[configured_params],
-                arguments=['--ros-args', '--log-level', log_level],
-                remappings=remappings),
-            Node(
-                package='nav2_behaviors',
-                executable='behavior_server',
-                name='behavior_server',
-                output='screen',
-                respawn=use_respawn,
-                respawn_delay=2.0,
-                parameters=[configured_params],
-                arguments=['--ros-args', '--log-level', log_level],
-                remappings=remappings),
-            Node(
-                package='nav2_bt_navigator',
-                executable='bt_navigator',
-                name='bt_navigator',
-                output='screen',
-                respawn=use_respawn,
-                respawn_delay=2.0,
-                parameters=[configured_params],
-                arguments=['--ros-args', '--log-level', log_level],
-                remappings=remappings),
-            Node(
-                package='nav2_waypoint_follower',
-                executable='waypoint_follower',
-                name='waypoint_follower',
-                output='screen',
-                respawn=use_respawn,
-                respawn_delay=2.0,
-                parameters=[configured_params],
-                arguments=['--ros-args', '--log-level', log_level],
-                remappings=remappings),
-            Node(
-                package='nav2_velocity_smoother',
-                executable='velocity_smoother',
-                name='velocity_smoother',
-                output='screen',
-                respawn=use_respawn,
-                respawn_delay=2.0,
-                parameters=[configured_params],
-                arguments=['--ros-args', '--log-level', log_level],
-                remappings=remappings +
-                        [('cmd_vel', 'cmd_vel_nav'), ('cmd_vel_smoothed', 'cmd_vel')]),
-            Node(
-                package='nav2_lifecycle_manager',
-                executable='lifecycle_manager',
-                name='lifecycle_manager_navigation',
-                output='screen',
-                arguments=['--ros-args', '--log-level', log_level],
-                parameters=[{'use_sim_time': use_sim_time},
-                            {'autostart': autostart},
-                            {'node_names': lifecycle_nodes}]),
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(
+                    PathJoinSubstitution([
+                        fastlio_dir, 
+                        "launch", 
+                        "mapping.launch.py"
+                    ])
+                ), 
+                launch_arguments={
+                    "config_file":"mid360.yaml", 
+                    "use_sim_time":use_sim_time
+                }.items(), 
+                condition=IfCondition(launch_fastlio)
+            )
         ]
     )
 
-    load_composable_nodes = LoadComposableNodes(
-        condition=IfCondition(use_composition),
-        target_container=container_name_full,
-        composable_node_descriptions=[
-            ComposableNode(
-                package='nav2_map_server',
-                plugin='nav2_map_server::MapServer',
-                name='map_server',
-                parameters=[configured_params],
-                remappings=remappings),
-            ComposableNode(
-                package='nav2_controller',
-                plugin='nav2_controller::ControllerServer',
-                name='controller_server',
-                parameters=[configured_params],
-                remappings=remappings + [('cmd_vel', 'cmd_vel_nav')]),
-            ComposableNode(
-                package='nav2_smoother',
-                plugin='nav2_smoother::SmootherServer',
-                name='smoother_server',
-                parameters=[configured_params],
-                remappings=remappings),
-            ComposableNode(
-                package='nav2_planner',
-                plugin='nav2_planner::PlannerServer',
-                name='planner_server',
-                parameters=[configured_params],
-                remappings=remappings),
-            ComposableNode(
-                package='nav2_behaviors',
-                plugin='behavior_server::BehaviorServer',
-                name='behavior_server',
-                parameters=[configured_params],
-                remappings=remappings),
-            ComposableNode(
-                package='nav2_bt_navigator',
-                plugin='nav2_bt_navigator::BtNavigator',
-                name='bt_navigator',
-                parameters=[configured_params],
-                remappings=remappings),
-            ComposableNode(
-                package='nav2_waypoint_follower',
-                plugin='nav2_waypoint_follower::WaypointFollower',
-                name='waypoint_follower',
-                parameters=[configured_params],
-                remappings=remappings),
-            ComposableNode(
-                package='nav2_velocity_smoother',
-                plugin='nav2_velocity_smoother::VelocitySmoother',
-                name='velocity_smoother',
-                parameters=[configured_params],
-                remappings=remappings +
-                           [('cmd_vel', 'cmd_vel_nav'), ('cmd_vel_smoothed', 'cmd_vel')]),
-            ComposableNode(
-                package='nav2_lifecycle_manager',
-                plugin='nav2_lifecycle_manager::LifecycleManager',
-                name='lifecycle_manager_navigation',
-                parameters=[{'use_sim_time': use_sim_time,
-                             'autostart': autostart,
-                             'node_names': lifecycle_nodes}]),
-        ],
+    
+
+    # ===================== Localizer Launch ============================
+
+    localizer_config_path = PathJoinSubstitution(
+        [FindPackageShare("localizer"), "config", "localizer.yaml"]
     )
 
-    # Create the launch description and populate
-    ld = LaunchDescription()
+    rviz_cfg = PathJoinSubstitution(
+        [FindPackageShare("localizer"), "rviz", "localizer.rviz"]
+    )
 
-    # Set environment variables
-    ld.add_action(stdout_linebuf_envvar)
+    localizer_node = Node(
+                package="localizer",
+                namespace="localizer",
+                executable="localizer_node",
+                name="localizer_node",
+                output="screen",
+                parameters=[
+                    {
+                        "config_path": localizer_config_path.perform(
+                            launch.LaunchContext()
+                        ), 
+                        "use_sim_time":use_sim_time
+                    }
+                ],
+                condition=IfCondition(launch_localizer)
+            )
+    localizer_rviz = Node(
+                package="rviz2",
+                namespace="localizer",
+                executable="rviz2",
+                name="rviz2",
+                output="screen",
+                arguments=["-d", rviz_cfg.perform(launch.LaunchContext())],
+                parameters=[{
+                    "use_sim_time":use_sim_time
+                }], 
+                condition=IfCondition(launch_localizer)
+            )
 
-    # Declare the launch options
-    ld.add_action(declare_namespace_cmd)
-    ld.add_action(declare_map_yaml_cmd)
-    ld.add_action(declare_use_sim_time_cmd)
-    ld.add_action(declare_params_file_cmd)
-    ld.add_action(declare_autostart_cmd)
-    ld.add_action(declare_use_composition_cmd)
-    ld.add_action(declare_container_name_cmd)
-    ld.add_action(declare_use_respawn_cmd)
-    ld.add_action(declare_log_level_cmd)
-    # Add the actions to launch all of the navigation nodes
-    ld.add_action(load_nodes)
-    ld.add_action(load_composable_nodes)
+    # =====================================================
 
-    return ld
+    remapper = Node(
+        package="guide_robot_localization", 
+        executable="pose_estimate_remapper", 
+        name="pose_estimate_remapper", 
+        parameters=[{
+            "map_path":map_path, 
+            "verbose":False, 
+            "use_sim_time":use_sim_time
+        }], 
+        condition=IfCondition(launch_remapper)
+    )
+
+    #Densifier doesn't seem to work
+    # densifier = Node(
+    #     package="guide_robot_localization", 
+    #     executable="tf_densifier", 
+    #     name="tf_densifier", 
+    #     parameters=[{
+    #         "parent_frame":"map", 
+    #         "child_frame":"camera_init", 
+    #         "hertz":10.0, 
+    #         "verbose":True
+    #     }]
+    # )
+
+    # Seems like height remover is not what we need for the "sensor out of bounds" error
+    height_remover = Node(
+        package="guide_robot_localization", 
+        executable="tf_height_remover", 
+        name="tf_height_remover", 
+        parameters=[{
+            "world_frame":"map", 
+            "input_frame":"body", 
+            "output_frame":"robot_footprint", 
+            "verbose":False, 
+            "z_extra_offset":0.2, 
+            "use_sim_time":use_sim_time
+        }]
+    )
+
+
+    # body_to_base_footprint = Node(
+    #     package='tf2_ros', executable='static_transform_publisher',
+    #     arguments=['0','0','-0.4','0','0','0', "body", "robot_footprint"]
+    # )
+
+    rosbag = ExecuteProcess(
+        cmd=['ros2', 'bag', 'play', bag_path],
+        output='screen', 
+        condition=IfCondition(use_bag), 
+        name="rosbag_recorder"
+    )
+
+
+    #Nav2 bringup launch
+    nav2_bringup = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([
+                this_pkg_dir, 
+                "launch", 
+                "nav_bringup.launch.py"
+            ])
+        ), 
+        launch_arguments={
+            "params_file":PathJoinSubstitution([this_pkg_dir, "config", "nav2_params.yaml"]), 
+            "map":map_2d_path,
+            "use_sim_time":use_sim_time
+        }.items()
+    )
+
+    # Tron control node
+    control_node = Node(
+        package="tron1_control",
+        executable="bridge", 
+        name="tron_bridge", 
+        parameters=[{
+            "robot_ip":'10.192.1.2', 
+            'robot_port': 5000, 
+            'accid': 'WF_TRON1A_212', 
+        }]
+    )
+
+    
+
+    return LaunchDescription([
+        declare_launch_driver, 
+        declare_launch_fastlio, 
+        declare_launch_static_odom, 
+        declare_launch_localizer, 
+        declare_launch_remapper, 
+        declare_map_path, 
+        declare_map_2d_path, 
+        declare_use_bag, 
+        declare_bag_path, 
+        declare_use_sim_time, 
+        driver, 
+        fastlio_group, 
+        static_odom_node, 
+        localizer_node, 
+        localizer_rviz, 
+        remapper, 
+        # densifier, 
+        height_remover, 
+        # body_to_base_footprint, 
+        rosbag, 
+        nav2_bringup, 
+        control_node
+    ])

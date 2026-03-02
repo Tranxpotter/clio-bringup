@@ -72,25 +72,8 @@ def generate_launch_description():
     )
 
 
-    # pc synced static odom to link map and camera_init
-    # static_odom_node = Node(
-    #     package="guide_robot_localization", 
-    #     executable="pc_synced_static_odom_publisher", 
-    #     name="pc_synced_static_odom_publisher", 
-    #     output="screen", 
-    #     parameters=[{
-    #         "input_topic":"/cloud_registered", 
-    #         "output_topic":"/static_odom", 
-    #         "parent_frame":"/camera_init", 
-    #         "child_frame":"/static_odom", 
-    #         "period":0.05, 
-    #         "verbose":False, 
-    #         "use_sim_time":use_sim_time
-    #     }], 
-    #     condition=IfCondition(launch_static_odom)
-    # )
 
-    # pc synced static odom to link map and camera_init
+    # static odom to link map and camera_init
     static_odom_node = Node(
         package="guide_robot_localization", 
         executable="static_odom_publisher", 
@@ -186,18 +169,6 @@ def generate_launch_description():
         condition=IfCondition(launch_remapper)
     )
 
-    #Densifier doesn't seem to work
-    # densifier = Node(
-    #     package="guide_robot_localization", 
-    #     executable="tf_densifier", 
-    #     name="tf_densifier", 
-    #     parameters=[{
-    #         "parent_frame":"map", 
-    #         "child_frame":"camera_init", 
-    #         "hertz":10.0, 
-    #         "verbose":True
-    #     }]
-    # )
 
     # Seems like height remover is not what we need for the "sensor out of bounds" error
     height_remover = Node(
@@ -215,10 +186,6 @@ def generate_launch_description():
     )
 
 
-    # body_to_base_footprint = Node(
-    #     package='tf2_ros', executable='static_transform_publisher',
-    #     arguments=['0','0','-0.4','0','0','0', "body", "robot_footprint"]
-    # )
 
     rosbag = ExecuteProcess(
         cmd=['ros2', 'bag', 'play', bag_path],
@@ -263,9 +230,7 @@ def generate_launch_description():
         localizer_node, 
         localizer_rviz, 
         remapper, 
-        # densifier, 
         height_remover, 
-        # body_to_base_footprint, 
         rosbag, 
-        nav2_bringup, 
+        nav2_bringup
     ])
