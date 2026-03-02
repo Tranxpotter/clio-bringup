@@ -34,7 +34,7 @@ def generate_launch_description():
     driver_dir = get_package_share_directory("livox_ros_driver2")
     fastlio_dir = get_package_share_directory("fast_lio")
     localizer_dir = get_package_share_directory("localizer")
-    guide_robot_localization_dir = get_package_share_directory("guide_robot_localization")
+    localization_utils_dir = get_package_share_directory("localization_utils")
     nav2_bringup_dir = get_package_share_directory("nav2_bringup")
 
     # Declare launch arguments
@@ -72,7 +72,7 @@ def generate_launch_description():
 
     # Static odom to link map and camera_init
     static_odom_node = Node(
-        package="guide_robot_localization", 
+        package="localization_utils", 
         executable="static_odom_publisher", 
         name="static_odom_publisher", 
         output="screen", 
@@ -155,7 +155,7 @@ def generate_launch_description():
     # =====================================================
 
     remapper = Node(
-        package="guide_robot_localization", 
+        package="localization_utils", 
         executable="pose_estimate_remapper", 
         name="pose_estimate_remapper", 
         parameters=[{
@@ -169,7 +169,7 @@ def generate_launch_description():
 
     # Currently works pretty well, though can still think about whether there is a more elegant solution
     height_remover = Node(
-        package="guide_robot_localization", 
+        package="localization_utils", 
         executable="tf_height_remover", 
         name="tf_height_remover", 
         parameters=[{
