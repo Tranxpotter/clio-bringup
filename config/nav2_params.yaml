@@ -165,14 +165,14 @@ local_costmap:
         origin_z: 0.0
         z_resolution: 0.3
         z_voxels: 1
-        max_obstacle_height: 2.0
+        max_obstacle_height: 1.0
         mark_threshold: 0
         observation_sources: scan
         observation_persistence: 0.0
         scan:
           topic: /cloud_registered
           sensor_frame: body
-          max_obstacle_height: 2.0
+          max_obstacle_height: 1.0
           clearing: True
           marking: True
           data_type: "PointCloud2"
@@ -205,7 +205,7 @@ global_costmap:
         scan:
           topic: /cloud_registered
           sensor_frame: body
-          max_obstacle_height: 2.0
+          max_obstacle_height: 1.0
           clearing: True
           marking: True
           data_type: "PointCloud2"
