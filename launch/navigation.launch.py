@@ -152,7 +152,6 @@ def generate_launch_description():
                 condition=IfCondition(launch_localizer)
             )
 
-    # =====================================================
 
     remapper = Node(
         package="localization_utils", 
@@ -182,8 +181,26 @@ def generate_launch_description():
         }]
     )
 
+    robot_init_pub = Node(
+        package="tf2_ros",
+        executable="static_transform_publisher",
+        name="robot_init_pub",
+        arguments=["0", "0", "0", "3.14159", "-1.0472", "0", "camera_init", "robot_init"],
+        parameters=[{
+            "use_sim_time":use_sim_time
+        }]
+    )
 
-    #Nav2 bringup launch
+    footprint_pub = Node(
+        package="tf2_ros",
+        executable="static_transform_publisher",
+        name="footprint_pub",
+        arguments=["0", "0", "0", "3.14159", "-1.0472", "0", "body", "robot_footprint"],
+        parameters=[{
+            "use_sim_time":use_sim_time
+        }]
+    )
+    
     nav2_bringup = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([
@@ -214,21 +231,23 @@ def generate_launch_description():
     
 
     return LaunchDescription([
-        declare_launch_driver, 
-        declare_launch_fastlio, 
-        declare_launch_static_odom, 
-        declare_launch_localizer, 
-        declare_launch_remapper, 
-        declare_map_path, 
-        declare_map_2d_path, 
-        declare_use_sim_time, 
-        driver, 
-        fastlio_group, 
-        static_odom_node, 
-        localizer_node, 
-        localizer_rviz, 
-        remapper, 
-        height_remover, 
-        nav2_bringup, 
-        control_node
+    declare_launch_driver, 
+    declare_launch_fastlio, 
+    declare_launch_static_odom, 
+    declare_launch_localizer, 
+    declare_launch_remapper, 
+    declare_map_path, 
+    declare_map_2d_path, 
+    declare_use_sim_time, 
+    driver, 
+    fastlio_group, 
+    static_odom_node, 
+    localizer_node, 
+    localizer_rviz,
+    remapper, 
+    # height_remover, 
+    robot_init_pub,
+    footprint_pub,
+    nav2_bringup, 
+    control_node
     ])

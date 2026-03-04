@@ -145,7 +145,7 @@ local_costmap:
       update_frequency: 5.0
       publish_frequency: 2.0
       transform_tolerance: 1.0
-      global_frame: camera_init
+      global_frame: robot_init
       robot_base_frame: robot_footprint
       use_sim_time: True
       rolling_window: true
