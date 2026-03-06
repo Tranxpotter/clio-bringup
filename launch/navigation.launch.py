@@ -173,8 +173,8 @@ def generate_launch_description():
         name="tf_height_remover", 
         parameters=[{
             "world_frame":"map", 
-            "input_frame":"body", 
-            "output_frame":"robot_footprint", 
+            "input_frame":"robot_footprint", 
+            "output_frame":"base_footprint", 
             "verbose":False, 
             "z_extra_offset":0.2, 
             "use_sim_time":use_sim_time
