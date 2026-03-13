@@ -28,6 +28,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'waypoint_follower_client = clio_bringup.waypoint_follower_client:main',
         ],
     },
 )

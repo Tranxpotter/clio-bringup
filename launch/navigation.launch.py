@@ -185,7 +185,7 @@ def generate_launch_description():
         package="tf2_ros",
         executable="static_transform_publisher",
         name="robot_init_pub",
-        arguments=["0", "0", "0", "3.14159", "-1.0472", "0", "camera_init", "robot_init"],
+        arguments=["0", "0", "0", "3.14159", "-3.14159", "0", "camera_init", "robot_init"], # x, y, z, yaw, pitch, roll
         parameters=[{
             "use_sim_time":use_sim_time
         }]
@@ -195,7 +195,7 @@ def generate_launch_description():
         package="tf2_ros",
         executable="static_transform_publisher",
         name="footprint_pub",
-        arguments=["0", "0", "0", "3.14159", "-1.0472", "0", "body", "robot_footprint"],
+        arguments=["0", "0", "0", "3.14159", "-3.14159", "0", "body", "robot_footprint"],
         parameters=[{
             "use_sim_time":use_sim_time
         }]
@@ -227,8 +227,6 @@ def generate_launch_description():
             'accid': 'WF_TRON1A_212', 
         }]
     )
-
-    
 
     return LaunchDescription([
     declare_launch_driver, 

@@ -133,3 +133,12 @@ Check out these repositories as well, they are also used in this project:
 
 - Name: `<maintainer_name>`
 - Email: `<maintainer_email>`
+
+
+## Starting Hardware interfaces
+ros2 launch tron_utils system_exp.launch.py robot_head_model:=true
+ros2 run clio_hardware eyes_node
+conda activate stservo && ros2 run stservo_ros stservo_node.py --ros-args -p device_port:=/dev/ttyCLIO -p max_servo_id:=10 -p publish_rate:=75.0
+
+## Starting main launch
+ros2 launch tour_manager tour_planner.launch.py
